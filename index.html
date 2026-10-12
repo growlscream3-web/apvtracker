@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>APV Fuel Tracker - Offline</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1B5E20">
+<meta name="description" content="Aplikasi offline untuk menghitung biaya BBM dan rata-rata jarak tempuh mobil APV.">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="APV Fuel Tracker">
+<style>
+  :root{
+    --primary:#1B5E20;
+    --primary-dark:#003D00;
+    --accent:#FFA000;
+    --bg:#F4F6F5;
+    --card:#FFFFFF;
+    --text:#1A1A1A;
+    --muted:#6B6B6B;
+    --danger:#C62828;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    padding-bottom:40px;
+  }
+  header{
+    background:var(--primary);
+    color:#fff;
+    padding:20px 16px 24px;
+  }
+  header h1{margin:0;font-size:20px;}
+  header p{margin:6px 0 0;font-size:13px;opacity:0.9;}
+  .container{max-width:520px;margin:0 auto;padding:16px;}
+  .card{
+    background:var(--card);
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:16px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.06);
+  }
+  .card h2{margin:0 0 12px;font-size:16px;color:var(--primary);}
+  label{
+    display:block;
+    font-size:13px;
+    color:var(--muted);
+    margin-bottom:4px;
+    margin-top:12px;
+  }
+  label:first-child{margin-top:0;}
+  input[type=number],input[type=date],select{
+    width:100%;
+    padding:12px;
+    border:1px solid #ddd;
+    border-radius:10px;
+    font-size:16px;
+    background:#fafafa;
+    font-family:inherit;
+    color:var(--text);
+  }
+  input[type=number]:focus,input[type=date]:focus,select:focus{
+    outline:none;
+    border-color:var(--primary);
+    background:#fff;
+  }
+  select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236B6B6B' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;}
+  .btn-row{display:flex;gap:10px;margin-top:16px;}
+  button{
+    flex:1;
+    padding:13px;
+    border:none;
+    border-radius:10px;
+    font-size:15px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-accent{background:var(--accent);color:#fff;}
+  .btn-primary:active,.btn-accent:active{opacity:0.85;}
+  .result-card{background:var(--primary);color:#fff;}
+  .result-card h2{color:#fff;}
+  .result-row{
+    display:flex;
+    justify-content:space-between;
+    padding:6px 0;
+    font-size:14px;
+    border-bottom:1px solid rgba(255,255,255,0.15);
+  }
+  .result-row:last-child{border-bottom:none;}
+  .result-row .label{opacity:0.85;}
+  .result-row .value{font-weight:700;}
+  .summary-text{font-size:13px;color:var(--muted);line-height:1.6;white-space:pre-line;}
+  .history-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:10px;
+  }
+  .history-header h3{margin:0;font-size:16px;}
+  .link-danger{color:var(--danger);font-size:13px;cursor:pointer;background:none;border:none;padding:0;flex:none;font-weight:600;}
+  .trip-item{
+    background:var(--card);
+    border-radius:12px;
+    padding:12px 14px;
+    margin-bottom:10px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.06);
+  }
+  .trip-top{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);}
+  .trip-top .hapus{color:var(--danger);cursor:pointer;font-weight:600;}
+  .trip-jarak{font-weight:700;margin-top:4px;font-size:15px;}
+  .trip-detail{font-size:12.5px;color:var(--muted);margin-top:3px;}
+  .empty-state{text-align:center;color:var(--muted);padding:24px;font-size:14px;}
+  .toast{
+    position:fixed;
+    left:50%;
+    bottom:24px;
+    transform:translateX(-50%);
+    background:#222;
+    color:#fff;
+    padding:10px 18px;
+    border-radius:20px;
+    font-size:13px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 0.25s;
+    z-index:999;
+    max-width:90%;
+    text-align:center;
+  }
+  .toast.show{opacity:1;}
+  .offline-badge{
+    display:inline-block;
+    background:rgba(255,255,255,0.18);
+    padding:3px 10px;
+    border-radius:20px;
+    font-size:11px;
+    margin-top:8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🚐 APV Fuel Tracker</h1>
+  <p>Hitung biaya BBM & rata-rata jarak tempuh mobil APV</p>
+  <span class="offline-badge">✓ Bekerja 100% Offline — data tersimpan di device ini</span>
+</header>
+
+<div class="container">
+
+  <!-- FORM INPUT -->
+  <div class="card">
+    <h2>Input Perjalanan</h2>
+
+    <label for="tanggalBBM">Tanggal Pengisian BBM</label>
+    <input type="date" id="tanggalBBM">
+
+    <label for="jenisBBM">Jenis BBM</label>
+    <select id="jenisBBM">
+      <option value="Pertalite">Pertalite</option>
+      <option value="Pertamax">Pertamax</option>
+      <option value="Pertamax Turbo">Pertamax Turbo</option>
+    </select>
+
+    <label for="kmAwal">KM Pertama (odometer awal)</label>
+    <input type="number" id="kmAwal" inputmode="decimal" placeholder="contoh: 12000">
+
+    <label for="kmAkhir">KM Terakhir (odometer akhir)</label>
+    <input type="number" id="kmAkhir" inputmode="decimal" placeholder="contoh: 12250">
+
+    <label for="liter">Jumlah BBM dibeli (liter)</label>
+    <input type="number" id="liter" inputmode="decimal" placeholder="contoh: 20">
+
+    <label for="harga">Harga BBM per liter (Rp)</label>
+    <input type="number" id="harga" inputmode="decimal" placeholder="contoh: 10000">
+
+    <div class="btn-row">
+      <button class="btn-primary" onclick="hitung()">Hitung</button>
+      <button class="btn-accent" onclick="simpan()">Simpan</button>
+    </div>
+  </div>
+
+  <!-- HASIL -->
+  <div class="card result-card">
+    <h2>Hasil Perhitungan</h2>
+    <div class="result-row"><span class="label">Jarak tempuh</span><span class="value" id="rJarak">-</span></div>
+    <div class="result-row"><span class="label">Konsumsi BBM</span><span class="value" id="rKonsumsi">-</span></div>
+    <div class="result-row"><span class="label">Total biaya BBM</span><span class="value" id="rBiaya">-</span></div>
+    <div class="result-row"><span class="label">Biaya per KM</span><span class="value" id="rBiayaKm">-</span></div>
+    <div class="result-row"><span class="label">Perkiraan sisa BBM di tangki</span><span class="value" id="rSisaBBM">-</span></div>
+    <div class="result-row"><span class="label">Estimasi jarak tambahan</span><span class="value" id="rEstimasiLagi">-</span></div>
+  </div>
+  <div class="summary-text" id="rSisaBBMNote" style="margin:-8px 0 16px;"></div>
+
+  <!-- RATA-RATA -->
+  <div class="card">
+    <h2>Rata-rata Keseluruhan</h2>
+    <div class="summary-text" id="summary">Belum ada data tersimpan</div>
+  </div>
+
+  <!-- ESTIMASI SISA BBM -->
+  <div class="card">
+    <h2>⛽ Estimasi Jarak dari Sisa BBM</h2>
+    <label for="sisaLiter">Sisa bahan bakar di tangki (liter)</label>
+    <input type="number" id="sisaLiter" inputmode="decimal" placeholder="contoh: 5">
+    <div class="btn-row">
+      <button class="btn-primary" onclick="hitungEstimasi()">Hitung Estimasi</button>
+    </div>
+    <div class="summary-text" id="estimasiResult" style="margin-top:12px;">Isi sisa BBM lalu tekan Hitung Estimasi. Perhitungan memakai rata-rata konsumsi dari riwayat yang tersimpan.</div>
+  </div>
+
+  <!-- RIWAYAT -->
+  <div class="history-header">
+    <h3>Riwayat Perjalanan</h3>
+    <button class="link-danger" onclick="hapusSemua()">Hapus Semua</button>
+  </div>
+  <div id="historyList"></div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const STORAGE_KEY = "apv_fuel_tracker_data";
+  let lastRecord = null;
+
+  function loadData(){
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }
+
+  function saveData(list){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  }
+
+  function formatAngka(v){
+    if(Number.isInteger(v)) return v.toString();
+    return v.toLocaleString('id-ID', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  function formatRupiah(v){
+    return "Rp " + Math.round(v).toLocaleString('id-ID');
+  }
+
+  function todayISO(){
+    const d = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(()=> t.classList.remove('show'), 1800);
+  }
+
+  function hitungRecord(kmAwal, kmAkhir, liter, harga){
+    const jarak = kmAkhir - kmAwal;
+    const konsumsi = liter > 0 ? jarak / liter : 0;
+    const totalBiaya = liter * harga;
+    const biayaPerKm = jarak > 0 ? totalBiaya / jarak : 0;
+    return {jarak, konsumsi, totalBiaya, biayaPerKm};
+  }
+
+  function hitung(){
+    const tanggalBBM = document.getElementById('tanggalBBM').value;
+    const jenisBBM = document.getElementById('jenisBBM').value;
+    const kmAwal = parseFloat(document.getElementById('kmAwal').value);
+    const kmAkhir = parseFloat(document.getElementById('kmAkhir').value);
+    const liter = parseFloat(document.getElementById('liter').value);
+    const harga = parseFloat(document.getElementById('harga').value);
+
+    if(!tanggalBBM){
+      showToast("Mohon isi tanggal pengisian BBM");
+      return;
+    }
+    if(isNaN(kmAwal) || isNaN(kmAkhir) || isNaN(liter) || isNaN(harga)){
+      showToast("Mohon isi semua data dengan benar");
+      return;
+    }
+    if(kmAkhir <= kmAwal){
+      showToast("KM Terakhir harus lebih besar dari KM Pertama");
+      return;
+    }
+    if(liter <= 0){
+      showToast("Jumlah liter BBM harus lebih dari 0");
+      return;
+    }
+
+    const r = hitungRecord(kmAwal, kmAkhir, liter, harga);
+
+    document.getElementById('rJarak').textContent = formatAngka(r.jarak) + " km";
+    document.getElementById('rKonsumsi').textContent = formatAngka(r.konsumsi) + " km/L";
+    document.getElementById('rBiaya').textContent = formatRupiah(r.totalBiaya);
+    document.getElementById('rBiayaKm').textContent = formatRupiah(r.biayaPerKm) + "/km";
+
+    // otomatis hitung perkiraan sisa BBM & estimasi jarak tambahan
+    const {rata, jumlah} = getRataKonsumsi();
+    const noteBox = document.getElementById('rSisaBBMNote');
+
+    if(jumlah === 0){
+      // belum ada riwayat sebelumnya, pakai konsumsi perjalanan ini sendiri sebagai acuan sementara
+      document.getElementById('rSisaBBM').textContent = "0 L (BBM terpakai semua)";
+      document.getElementById('rEstimasiLagi').textContent = "0 km";
+      noteBox.textContent = "Catatan: ini perjalanan pertama, jadi seluruh BBM dianggap terpakai untuk jarak ini. Setelah beberapa kali Simpan data, estimasi akan mulai muncul berdasarkan rata-rata konsumsi.";
+    } else {
+      const bbmTerpakai = rata > 0 ? r.jarak / rata : 0;
+      const sisaBBM = liter - bbmTerpakai;
+      const estimasiLagi = sisaBBM > 0 ? sisaBBM * rata : 0;
+
+      document.getElementById('rSisaBBM').textContent = formatAngka(Math.max(sisaBBM,0)) + " L";
+      document.getElementById('rEstimasiLagi').textContent = formatAngka(estimasiLagi) + " km";
+
+      if(sisaBBM <= 0){
+        noteBox.textContent = `Berdasarkan rata-rata konsumsi ${formatAngka(rata)} km/liter (dari ${jumlah} riwayat), BBM ${formatAngka(liter)} liter kemungkinan sudah habis/hampir habis untuk jarak ${formatAngka(r.jarak)} km ini.`;
+      } else {
+        noteBox.textContent = `Dihitung dari rata-rata konsumsi ${formatAngka(rata)} km/liter (${jumlah} riwayat tersimpan): dari ${formatAngka(liter)} liter, kira-kira ${formatAngka(bbmTerpakai)} liter terpakai untuk ${formatAngka(r.jarak)} km ini, sisa ${formatAngka(sisaBBM)} liter masih bisa dipakai ${formatAngka(estimasiLagi)} km lagi.`;
+      }
+    }
+
+    lastRecord = {
+      tanggalBBM, jenisBBM,
+      kmAwal, kmAkhir, liter, harga
+    };
+  }
+
+  function formatTanggalTampil(isoDate){
+    // isoDate format: YYYY-MM-DD -> tampilkan sebagai DD/MM/YYYY
+    const [y,m,d] = isoDate.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
+  function simpan(){
+    if(!lastRecord){
+      showToast("Hitung dulu datanya sebelum disimpan");
+      return;
+    }
+    const list = loadData();
+    lastRecord.id = Date.now();
+    list.unshift(lastRecord);
+    saveData(list);
+
+    // reset form
+    ['kmAwal','kmAkhir','liter','harga'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('tanggalBBM').value = todayISO();
+    document.getElementById('jenisBBM').value = 'Pertalite';
+    document.getElementById('rJarak').textContent = "-";
+    document.getElementById('rKonsumsi').textContent = "-";
+    document.getElementById('rBiaya').textContent = "-";
+    document.getElementById('rBiayaKm').textContent = "-";
+    document.getElementById('rSisaBBM').textContent = "-";
+    document.getElementById('rEstimasiLagi').textContent = "-";
+    document.getElementById('rSisaBBMNote').textContent = "";
+    lastRecord = null;
+
+    showToast("Data perjalanan disimpan");
+    renderHistory();
+  }
+
+  function hapus(id){
+    let list = loadData();
+    list = list.filter(item => item.id !== id);
+    saveData(list);
+    showToast("Data dihapus");
+    renderHistory();
+  }
+
+  function hapusSemua(){
+    if(!confirm("Hapus semua riwayat perjalanan? Data yang dihapus tidak bisa dikembalikan.")) return;
+    saveData([]);
+    renderHistory();
+  }
+
+  function renderHistory(){
+    const list = loadData().sort((a,b) => {
+      const da = a.tanggalBBM || '0000-00-00';
+      const db = b.tanggalBBM || '0000-00-00';
+      if(da !== db) return db.localeCompare(da);
+      return b.id - a.id;
+    });
+    const container = document.getElementById('historyList');
+    const summary = document.getElementById('summary');
+
+    if(list.length === 0){
+      container.innerHTML = '<div class="empty-state">Belum ada riwayat perjalanan</div>';
+      summary.textContent = "Belum ada data tersimpan";
+      return;
+    }
+
+    let totalJarak = 0, totalLiter = 0, totalBiaya = 0;
+    let html = '';
+
+    list.forEach(item => {
+      const r = hitungRecord(item.kmAwal, item.kmAkhir, item.liter, item.harga);
+      totalJarak += r.jarak;
+      totalLiter += item.liter;
+      totalBiaya += r.totalBiaya;
+
+      const tanggalTampil = item.tanggalBBM ? formatTanggalTampil(item.tanggalBBM) : (item.tanggal || '-');
+      const jenis = item.jenisBBM || 'Pertalite';
+      const badgeColor = jenis === 'Pertamax Turbo' ? '#C62828' : (jenis === 'Pertamax' ? '#1565C0' : '#2E7D32');
+
+      html += `
+        <div class="trip-item">
+          <div class="trip-top">
+            <span>📅 Isi BBM: ${tanggalTampil}</span>
+            <span class="hapus" onclick="hapus(${item.id})">Hapus</span>
+          </div>
+          <div class="trip-jarak">
+            🛣️ Jarak tempuh: ${formatAngka(r.jarak)} km &nbsp;•&nbsp; KM ${formatAngka(item.kmAwal)} - ${formatAngka(item.kmAkhir)}
+            <span style="display:inline-block;background:${badgeColor};color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle;">${jenis}</span>
+          </div>
+          <div class="trip-detail">${formatAngka(item.liter)} L • ${formatRupiah(item.harga)}/L • Konsumsi: ${formatAngka(r.konsumsi)} km/L • Total ${formatRupiah(r.totalBiaya)} • ${formatRupiah(r.biayaPerKm)}/km</div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+
+    const rataKonsumsi = totalLiter > 0 ? totalJarak / totalLiter : 0;
+    const rataBiayaKm = totalJarak > 0 ? totalBiaya / totalJarak : 0;
+
+    summary.textContent =
+      `Total ${list.length} perjalanan • Total jarak: ${formatAngka(totalJarak)} km\n` +
+      `Rata-rata konsumsi: ${formatAngka(rataKonsumsi)} km/liter\n` +
+      `Total biaya BBM: ${formatRupiah(totalBiaya)}\n` +
+      `Rata-rata biaya per km: ${formatRupiah(rataBiayaKm)}/km`;
+  }
+
+  function getRataKonsumsi(){
+    const list = loadData();
+    if(list.length === 0) return {rata:0, jumlah:0};
+    let totalJarak = 0, totalLiter = 0;
+    list.forEach(item => {
+      const r = hitungRecord(item.kmAwal, item.kmAkhir, item.liter, item.harga);
+      totalJarak += r.jarak;
+      totalLiter += item.liter;
+    });
+    return {rata: totalLiter > 0 ? totalJarak / totalLiter : 0, jumlah: list.length};
+  }
+
+  function hitungEstimasi(){
+    const sisaLiter = parseFloat(document.getElementById('sisaLiter').value);
+    const resultBox = document.getElementById('estimasiResult');
+
+    if(isNaN(sisaLiter) || sisaLiter <= 0){
+      showToast("Mohon isi sisa BBM dengan benar");
+      return;
+    }
+
+    const {rata, jumlah} = getRataKonsumsi();
+    if(jumlah === 0){
+      resultBox.textContent = "Belum ada riwayat perjalanan tersimpan, jadi rata-rata konsumsi belum bisa dihitung. Simpan minimal 1 data perjalanan dulu.";
+      return;
+    }
+
+    const estimasiJarak = rata * sisaLiter;
+
+    resultBox.innerHTML =
+      `Rata-rata konsumsi APV kamu: <b>${formatAngka(rata)} km/liter</b> (dihitung dari ${jumlah} riwayat perjalanan)<br>` +
+      `Dengan sisa ${formatAngka(sisaLiter)} liter, estimasi jarak yang masih bisa ditempuh: <b>${formatAngka(estimasiJarak)} km</b>`;
+  }
+
+  // set tanggal default = hari ini, lalu muat riwayat saat halaman dibuka
+  document.getElementById('tanggalBBM').value = todayISO();
+  renderHistory();
+</script>
+
+<script>
+  // Registrasi service worker supaya app bisa jalan offline (PWA)
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js')
+        .catch(err => console.log('Service worker gagal register:', err));
+    });
+  }
+</script>
+
+</body>
+</html>
